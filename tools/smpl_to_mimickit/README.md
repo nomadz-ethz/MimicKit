@@ -52,4 +52,4 @@ python tools/smpl_to_mimickit/smpl_to_mimickit.py \
 
 ## Credits
 
-This tool uses the `poselib` library for skeleton manipulation and retargeting. Part of the conversion logic is adapted from [PHC](https://github.com/ZhengyiLuo/PHC).
+Part of the conversion logic is adapted from [PHC](https://github.com/ZhengyiLuo/PHC).

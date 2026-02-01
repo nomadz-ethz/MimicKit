@@ -29,18 +29,22 @@ import argparse
 import numpy as np
 import sys
 import torch
-from scipy.spatial.transform import Rotation as R
 
 sys.path.append(".")
 
 from mimickit.anim.motion import Motion, LoopMode
-from mimickit.util.torch_util import quat_to_exp_map
+from mimickit.util.torch_util import (
+    quat_to_exp_map,
+    exp_map_to_quat,
+    quat_mul,
+    quat_conjugate,
+)
 from tools.smpl_to_mimickit.smpl_names import SMPL_BONE_ORDER_NAMES, SMPL_MUJOCO_NAMES
 from tools.smpl_to_mimickit.smpl_constants import PARENT_INDICES, LOCAL_TRANSLATION
-from tools.smpl_to_mimickit.rotation_tools import compute_global_rotations, compute_local_rotations, compute_global_translations
+from tools.smpl_to_mimickit.rotation_tools_new import compute_global_rotations, compute_local_rotations, compute_global_translations
 
-ZUP_TO_YUP = R.from_quat([0.5, 0.5, 0.5, 0.5])
-YUP_TO_ZUP = ZUP_TO_YUP.inv()
+ZUP_TO_YUP = torch.tensor([0.5, 0.5, 0.5, 0.5])
+YUP_TO_ZUP = quat_conjugate(ZUP_TO_YUP)
 
 
 def load_smpl_motion(input_file: str) -> tuple[np.ndarray, np.ndarray, int]:
@@ -116,20 +120,22 @@ def convert_smpl_to_mimickit(input_file: str,
     print(f"📍 Trans shape: {trans.shape}")
     print("="*60 + "\n")
 
-    root_rot = R.from_rotvec(poses[:, 0:3]).as_quat()
+    root_rot = exp_map_to_quat(torch.tensor(poses[:, 0:3], dtype=torch.float32)).numpy()
 
     pose_aa = np.concatenate([poses[:, :66], np.zeros((trans.shape[0], 6))], axis = -1) # Keep only SMPL parameters without hands, and explicitly set hand dofs to zero
 
     smpl_2_mujoco = [SMPL_BONE_ORDER_NAMES.index(q) for q in SMPL_MUJOCO_NAMES if q in SMPL_BONE_ORDER_NAMES]
     pose_aa_mj = pose_aa.reshape(N, 24, 3)[:, smpl_2_mujoco]
-    pose_quat = R.from_rotvec(pose_aa_mj.reshape(-1, 3)).as_quat().reshape(N, 24, 4)
+    pose_quat = exp_map_to_quat(torch.tensor(pose_aa_mj.reshape(-1, 3), dtype=torch.float32)).numpy().reshape(N, 24, 4)
     
-    # Due to the Y-up to Z-up conversion, a rotation must be applied to the global rotation of the joints.
-    scipy_global_rot = compute_global_rotations(
-        pose_quat,
+    global_rot = compute_global_rotations(
+        torch.tensor(pose_quat, dtype=torch.float32),
         PARENT_INDICES
     )
-    rotated_global_rot = (R.from_quat(scipy_global_rot.reshape(-1, 4)) * YUP_TO_ZUP).as_quat().reshape(N, -1, 4)
+    rotated_global_rot = quat_mul(
+        global_rot.reshape(-1, 4),
+        YUP_TO_ZUP.expand(global_rot.reshape(-1, 4).shape[0], -1)
+    ).reshape(N, -1, 4)
     rotated_local_rot = compute_local_rotations(
         rotated_global_rot,
         PARENT_INDICES
@@ -137,16 +143,19 @@ def convert_smpl_to_mimickit(input_file: str,
 
     global_translation = compute_global_translations(
         rotated_global_rot,
-        LOCAL_TRANSLATION,
+        torch.tensor(LOCAL_TRANSLATION, dtype=torch.float32),
         PARENT_INDICES
-    )
+    ).numpy()
 
     global_translation += trans[:, None, :]
 
-    dof_pos = quat_to_exp_map(torch.tensor(rotated_local_rot[:, 1:, :])).numpy().reshape(N, -1)
+    dof_pos = quat_to_exp_map(rotated_local_rot[:, 1:, :]).numpy().reshape(N, -1)
 
-    rotated_root_rot_quat = (R.from_quat(root_rot) * YUP_TO_ZUP).as_quat()
-    root_rot = quat_to_exp_map(torch.tensor(rotated_root_rot_quat)).numpy()
+    rotated_root_rot_quat = quat_mul(
+        torch.tensor(root_rot, dtype=torch.float32),
+        YUP_TO_ZUP.expand(root_rot.shape[0], -1)
+    )
+    root_rot = quat_to_exp_map(rotated_root_rot_quat).numpy()
 
     # Z-correction
     if z_correction == "full":
