@@ -29,6 +29,7 @@ import argparse
 import numpy as np
 import sys
 import torch
+import os
 
 sys.path.append(".")
 
@@ -41,7 +42,7 @@ from mimickit.util.torch_util import (
 )
 from tools.smpl_to_mimickit.smpl_names import SMPL_BONE_ORDER_NAMES, SMPL_MUJOCO_NAMES
 from tools.smpl_to_mimickit.smpl_constants import PARENT_INDICES, LOCAL_TRANSLATION
-from tools.smpl_to_mimickit.rotation_tools_new import compute_global_rotations, compute_local_rotations, compute_global_translations
+from tools.smpl_to_mimickit.rotation_tools import compute_global_rotations, compute_local_rotations, compute_global_translations
 
 ZUP_TO_YUP = torch.tensor([0.5, 0.5, 0.5, 0.5])
 YUP_TO_ZUP = quat_conjugate(ZUP_TO_YUP)
@@ -178,6 +179,12 @@ def convert_smpl_to_mimickit(input_file: str,
     save_fps = fps if output_fps == -1 else output_fps
     
     motion = Motion(loop_mode=loop_mode_out, fps=save_fps, frames=frames)
+
+    # Check if directory exists
+    output_dir = os.path.dirname(output_file)
+    if output_dir and not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    
     motion.save(output_file)
     
     print("\n" + "="*60)
