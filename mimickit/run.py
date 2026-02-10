@@ -33,12 +33,14 @@ def load_args(argv):
 def build_env(args, num_envs, device, visualize):
     env_file = args.parse_string("env_config")
     engine_file = args.parse_string("engine_config")
-    env = env_builder.build_env(env_file, engine_file, num_envs, device, visualize)
+    enable_cameras = args.parse_bool("video", False)
+    env = env_builder.build_env(env_file, engine_file, num_envs, device, visualize, enable_cameras=enable_cameras)
     return env
 
 def build_agent(args, env, device):
     agent_file = args.parse_string("agent_config")
     agent = agent_builder.build_agent(agent_file, env, device)
+    agent._video_recorder = build_video_recorder(args, env)
     return agent
 
 def train(agent, max_samples, out_dir, save_int_models, logger_type):
@@ -91,6 +93,29 @@ def set_rand_seed(args):
     print("Setting seed: {}".format(rand_seed))
     util.set_rand_seed(rand_seed)
     return
+
+def build_video_recorder(args, env):
+    video = args.parse_bool("video", False)
+    if not video:
+        return None
+    
+    import engines.isaac_lab_engine as isaac_lab_engine
+    if not isinstance(env._engine, isaac_lab_engine.IsaacLabEngine):
+        Logger.print("Video recording is only supported with Isaac Lab engine, skipping")
+        return None
+
+    from util.video_recorder import VideoRecorder
+
+    video_length = args.parse_int("video_length", 200)
+    video_interval = args.parse_int("video_interval", 2000)
+
+    engine = env._engine
+    recorder = VideoRecorder(engine=engine,
+                             video_length=video_length,
+                             video_interval=video_interval)
+    
+    Logger.print("Video recording enabled: length={}, interval={}".format(video_length, video_interval))
+    return recorder
 
 def run(rank, num_procs, device, master_port, args):
     mode = args.parse_string("mode", "train")

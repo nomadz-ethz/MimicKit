@@ -15,13 +15,13 @@ import util.torch_util as torch_util
 import engines.engine as engine
 
 class CharEnv(sim_env.SimEnv):
-    def __init__(self, env_config, engine_config, num_envs, device, visualize):
+    def __init__(self, env_config, engine_config, num_envs, device, visualize, enable_cameras=False):
         self._global_obs = env_config["global_obs"]
         self._root_height_obs = env_config.get("root_height_obs", True)
         self._zero_center_action = env_config.get("zero_center_action", False)
         
         super().__init__(env_config=env_config, engine_config=engine_config,
-                         num_envs=num_envs, device=device, visualize=visualize)
+                         num_envs=num_envs, device=device, visualize=visualize, enable_cameras=enable_cameras)
         
         char_id = self._get_char_id()
         self._print_char_prop(0, char_id)

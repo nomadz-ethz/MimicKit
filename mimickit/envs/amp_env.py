@@ -7,11 +7,11 @@ import util.circular_buffer as circular_buffer
 import util.torch_util as torch_util
 
 class AMPEnv(deepmimic_env.DeepMimicEnv):
-    def __init__(self, env_config, engine_config, num_envs, device, visualize):
+    def __init__(self, env_config, engine_config, num_envs, device, visualize, enable_cameras=False):
         self._num_disc_obs_steps = env_config["num_disc_obs_steps"]
 
         super().__init__(env_config=env_config, engine_config=engine_config, num_envs=num_envs, device=device,
-                         visualize=visualize)
+                         visualize=visualize, enable_cameras=enable_cameras)
         return
 
     def get_disc_obs_space(self):

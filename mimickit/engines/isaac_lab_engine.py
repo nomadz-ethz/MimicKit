@@ -59,7 +59,7 @@ class ObjCfg:
 
 
 class IsaacLabEngine(engine.Engine):
-    def __init__(self, config, num_envs, device, visualize):
+    def __init__(self, config, num_envs, device, visualize, enable_cameras=False):
         super().__init__()
 
         self._device = device
@@ -72,7 +72,7 @@ class IsaacLabEngine(engine.Engine):
         self._sim_steps = int(sim_freq / control_freq)
         sim_timestep = 1.0 / sim_freq
 
-        self._create_simulator(sim_timestep, visualize)
+        self._create_simulator(sim_timestep, visualize, enable_cameras)
 
         self._env_spacing = config["env_spacing"]
         self._obj_cfgs = []
@@ -86,10 +86,12 @@ class IsaacLabEngine(engine.Engine):
         self._build_ground()
         self._env_offsets = self._compute_env_offsets(num_envs)
 
+        if (visualize or enable_cameras):
+            self._build_camera()
+
         if (visualize):
             self._prev_frame_time = 0.0
             self._build_lights()
-            self._build_camera()
             self._build_draw_interface()
             self._setup_keyboard()
 
@@ -652,8 +654,17 @@ class IsaacLabEngine(engine.Engine):
         self._keyboard_callbacks = dict()
         return
     
-    def _create_simulator(self, sim_timestep, visualize):
-        self._app_launcher = AppLauncher({"headless": not visualize, "device": self._device})
+    def _create_simulator(self, sim_timestep, visualize, enable_cameras=False):
+        # Headless rendering (enable_cameras without a display) requires a virtual display
+        if enable_cameras and not visualize:
+            from util.display import ensure_virtual_display
+            ensure_virtual_display()
+
+        self._app_launcher = AppLauncher({
+            "headless": not visualize,
+            "device": self._device,
+            "enable_cameras": enable_cameras or visualize,
+        })
 
         import isaaclab.sim as sim_utils
         from isaacsim.core.utils.stage import get_current_stage
@@ -727,7 +738,7 @@ class IsaacLabEngine(engine.Engine):
 
     def _clear_forces(self):
         for obj in self._objs:
-            if (obj.has_external_wrench):
+            if (getattr(obj, 'has_external_wrentch', False)):
                 forces = torch.zeros([1, 3], dtype=torch.float, device=self._device)
                 torques = torch.zeros([1, 3], dtype=torch.float, device=self._device)
                 obj.set_external_force_and_torque(forces=forces, torques=torques,

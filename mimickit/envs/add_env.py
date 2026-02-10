@@ -5,9 +5,9 @@ import envs.deepmimic_env as deepmimic_env
 import util.torch_util as torch_util
 
 class ADDEnv(amp_env.AMPEnv):
-    def __init__(self, env_config, engine_config, num_envs, device, visualize):
+    def __init__(self, env_config, engine_config, num_envs, device, visualize, enable_cameras=False):
         super().__init__(env_config=env_config, engine_config=engine_config, 
-                         num_envs=num_envs, device=device, visualize=visualize)
+                         num_envs=num_envs, device=device, visualize=visualize, enable_cameras=enable_cameras)
         return
     
     def _build_disc_obs_buffers(self):

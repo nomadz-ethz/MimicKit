@@ -6,14 +6,14 @@ import envs.amp_env as amp_env
 import util.torch_util as torch_util
 
 class TaskLocationEnv(amp_env.AMPEnv):
-    def __init__(self, env_config, engine_config, num_envs, device, visualize):
+    def __init__(self, env_config, engine_config, num_envs, device, visualize, enable_cameras=False):
         self._tar_speed = env_config["tar_speed"]
         self._tar_change_time_min = env_config["tar_change_time_min"]
         self._tar_change_time_max = env_config["tar_change_time_max"]
         self._tar_dist_max = env_config["tar_dist_max"]
 
         super().__init__(env_config=env_config, engine_config=engine_config,
-                         num_envs=num_envs, device=device, visualize=visualize)
+                         num_envs=num_envs, device=device, visualize=visualize, enable_cameras=enable_cameras)
         return
     
     def _build_envs(self, config, num_envs):

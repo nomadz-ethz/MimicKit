@@ -46,6 +46,7 @@ class BaseAgent(torch.nn.Module):
         self._mode = AgentMode.TRAIN
         self._curr_obs = None
         self._curr_info = None
+        self._video_recorder = None
         return
 
     def train_model(self, max_samples, out_dir, save_int_models, logger_type):
@@ -86,6 +87,10 @@ class BaseAgent(torch.nn.Module):
                 self._curr_obs, self._curr_info = self._reset_envs()
             
             self._iter += 1
+
+        # flush any in-progress video recording at end of training
+        if (self._video_recorder is not None):
+            self._video_recorder.flush()
 
         return
 
@@ -269,6 +274,9 @@ class BaseAgent(torch.nn.Module):
 
     def _rollout_train(self, num_steps):
         for i in range(num_steps):
+            if (self._video_recorder is not None):
+                self._video_recorder.pre_step()
+
             action, action_info = self._decide_action(self._curr_obs, self._curr_info)
             self._record_data_pre_step(self._curr_obs, self._curr_info, action, action_info)
 
@@ -278,6 +286,9 @@ class BaseAgent(torch.nn.Module):
             
             self._curr_obs, self._curr_info = self._reset_done_envs(done)
             self._exp_buffer.inc()
+
+            if (self._video_recorder is not None):
+                self._video_recorder.post_step()
         return
     
     def _rollout_test(self, num_episodes):
