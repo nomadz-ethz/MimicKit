@@ -189,7 +189,7 @@ class Engine:
     def get_control_mode(self):
         return
 
-    #abc.abstractmethod
+    @abc.abstractmethod
     def create_video_recorder(self, camera_config=None):
         return
     
@@ -201,3 +201,9 @@ class Engine:
 
     def get_video_recorder(self):
         return None
+
+    def pre_rollout_test(self):
+        return
+    
+    def post_rollout_test(self):
+        return

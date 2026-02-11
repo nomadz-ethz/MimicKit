@@ -289,10 +289,7 @@ class BaseAgent(torch.nn.Module):
     def _rollout_test(self, num_episodes):
         self._test_return_tracker.reset()
 
-        # Start video recording if available
-        video_recorder = self._env._engine.get_video_recorder()
-        if video_recorder:
-            video_recorder.start_recording()
+        self._env._engine.pre_rollout_test()
 
         if (num_episodes == 0):
             test_info = {
@@ -312,10 +309,6 @@ class BaseAgent(torch.nn.Module):
                 next_obs, r, done, next_info = self._step_env(action)
                 self._test_return_tracker.update(r, done)
             
-                # Capture frame for video recording
-                if video_recorder:
-                    video_recorder.capture_frame()
-            
                 self._curr_obs, self._curr_info = self._reset_done_envs(done)
             
                 eps_per_env = self._test_return_tracker.get_eps_per_env()
@@ -330,9 +323,8 @@ class BaseAgent(torch.nn.Module):
                 "num_eps": self._test_return_tracker.get_episodes()
             }
 
-            # Stop video recording and upload
-            if video_recorder:
-                video_recorder.stop_recording()
+        self._env._engine.post_rollout_test()
+
         return test_info
 
     @abc.abstractmethod

@@ -147,6 +147,7 @@ class IsaacLabEngine(engine.Engine):
     
     def step(self):
         self._update_reset_objs()
+        self.get_video_recorder().capture_frame()
         
         for i in range(self._sim_steps):
             self._pre_sim_step()
@@ -1188,4 +1189,14 @@ class IsaacLabEngine(engine.Engine):
             if (event.input in self._keyboard_callbacks):
                 callback = self._keyboard_callbacks[event.input]
                 callback()
+        return
+
+    def pre_rollout_test(self):
+        if self._record_video:
+            self.video_recorder.start_recording()
+        return
+    
+    def post_rollout_test(self):
+        if self._record_video:
+            self.video_recorder.stop_recording()
         return

@@ -1145,4 +1145,3 @@ def exp_map_to_quat_indexed(in_dof: wp.array(dtype=float),
     out_q[q_idx + 2] = q[2]
     out_q[q_idx + 3] = q[3]
     return
-
