@@ -20,21 +20,36 @@ class VideoRecorder:
     Works with Isaac Lab engine in headless mode using the omni.replicator
     annotator API to capture viewport images.
 
-    TODO: Add support for other engines beyond Isaac Lab.
+    The recorder manages its own camera controls, independent of the environment's
+    visualization camera. This allows recording without interfering with visualization.
     
     Args:
         engine: The simulation engine (e.g. IsaacLabEngine).
+        camera_config: Dict with optional keys:
+            - cam_pos: np.ndarray, camera position [x, y, z]. Defaults to [0, -5, 3].
+            - cam_target: np.ndarray, camera target [x, y, z]. Defaults to [0, 0, 0].
+            - track_obj_id: int, object ID to track (None for still camera).
+            - track_env_id: int, environment ID for tracking (default 0).
         resolution: Tuple (width, height) for the captured frames.
         fps: Frames per second for the output video.
-        cam_prim_path: USD prim path for the camera to capture from.
     """
 
-    def __init__(self, engine: engine.Engine, resolution: tuple[int, int] = (640, 480),
-                 fps: int = 30, cam_prim_path: str = "/OmniverseKit_Persp") -> None:
+    VIDEO_CAM_PATH = "/World/VideoRecorderCamera"
+
+    def __init__(self, engine: engine.Engine, camera_config: dict = {},
+                 resolution: tuple[int, int] = (640, 480), fps: int = 30) -> None:
         self._engine: engine.Engine = engine
         self._resolution: tuple[int, int] = resolution
         self._fps: int = fps
-        self._cam_prim_path: str = cam_prim_path
+
+        # Create dedicated camera prim for video recording
+        self._cam_prim_path: str = self._build_camera()
+
+        # Camera control (from camera_config dict)
+        cam_pos = camera_config.get("cam_pos", np.array([0.0, -5.0, 3.0]))
+        cam_target = camera_config.get("cam_target", np.array([0.0, 0.0, 0.0]))
+        self._cam_pos: np.ndarray = np.array(cam_pos, dtype=np.float32)
+        self._cam_target: np.ndarray = np.array(cam_target, dtype=np.float32)
 
         self._recorded_frames: list[np.ndarray] = []
         self._recording: bool = False
@@ -44,13 +59,42 @@ class VideoRecorder:
 
         self._logger_step_tracker: Any | None = None
 
+        # Initialize camera pose
+        self._set_camera_pose(self._cam_pos, self._cam_target)
+
         return
+
+    def _build_camera(self) -> str:
+        """Create a dedicated camera prim for video recording, independent from visualization."""
+        import isaacsim.core.utils.prims as prim_utils
+        from omni.kit.viewport.utility.camera_state import ViewportCameraState
+
+        cam_path = self.VIDEO_CAM_PATH
+        stage = self._engine._stage
+        if not stage.GetPrimAtPath(cam_path).IsValid():
+            prim_utils.create_prim(cam_path, "Camera")
+            Logger.print("[VideoRecorder] Created dedicated video camera at {}".format(cam_path))
+
+        self._camera_state = ViewportCameraState(cam_path)
+        return cam_path
 
     def set_logger_step_tracker(self, logger: Any) -> None:
         """
         A temporary hack to get the step value from the logger.
         """
         self._logger_step_tracker = logger
+        return
+
+    def _set_camera_pose(self, pos: np.ndarray, target: np.ndarray) -> None:
+        """Set the video camera pose, same interface as Camera.lookat() -> engine.set_camera_pose()."""
+        env_offset = self._engine._env_offsets[0].cpu().numpy()
+        cam_pos = pos.copy()
+        cam_target = target.copy()
+
+        cam_pos[:2] += env_offset
+        cam_target[:2] += env_offset
+        self._camera_state.set_position_world(cam_pos, True)
+        self._camera_state.set_target_world(cam_target, True)
         return
 
     def _ensure_annotator(self) -> None:

@@ -92,8 +92,9 @@ class IsaacLabEngine(engine.Engine):
             self._build_camera()
             self._build_lights()
 
-        if (record_video):
-            self.create_video_recorder()
+        # Video recorder will be created after environment is initialized
+        # so it can query environment for camera config if needed
+        self._record_video = record_video
 
         if (visualize):
             self._prev_frame_time = 0.0
@@ -102,8 +103,14 @@ class IsaacLabEngine(engine.Engine):
 
         return
 
-    def create_video_recorder(self):
-        self.video_recorder = VideoRecorder(self)
+    def create_video_recorder(self, camera_config={}):
+        """Create the video recorder with optional camera configuration.
+        
+        Args:
+            camera_config: Optional camera config dict. If None, uses defaults.
+        """
+        self.video_recorder = VideoRecorder(self, camera_config)
+        
         Logger.print("Video recording enabled")
         return
     

@@ -33,10 +33,9 @@ class SimEnv(base_env.BaseEnv):
         self._build_data_buffers()
 
         self._record_video = record_video
-        if self._visualize or self._record_video:
-            self._build_camera(env_config)
 
         if self._visualize:
+            self._build_camera(env_config)
             self._play_mode = PlayMode.PLAY
             self._setup_gui()
 
@@ -78,8 +77,6 @@ class SimEnv(base_env.BaseEnv):
 
         if (self._visualize):
             self._render()
-        elif (self._record_video):
-            self._update_camera()
         
         return self._obs_buf, self._reward_buf, self._done_buf, self._info
     
@@ -167,6 +164,8 @@ class SimEnv(base_env.BaseEnv):
 
     def _build_engine(self, engine_config, num_envs, device, visualize, record_video=False):
         engine = engine_builder.build_engine(engine_config, num_envs, device, visualize, record_video=record_video)
+        if record_video:
+            engine.create_video_recorder(camera_config=self.get_video_camera_config())
         return engine
     
     @abc.abstractmethod

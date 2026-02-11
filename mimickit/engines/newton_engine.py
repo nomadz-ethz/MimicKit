@@ -1075,6 +1075,9 @@ class NewtonEngine(engine.Engine):
             callback()
         return
 
+    def create_video_recorder(self, camera_config=None):
+        raise NotImplementedError("Video recording not supported for Newton engine")
+
 
 @wp.kernel
 def clamp_arrays(x: wp.array(dtype=float),
@@ -1142,3 +1145,4 @@ def exp_map_to_quat_indexed(in_dof: wp.array(dtype=float),
     out_q[q_idx + 2] = q[2]
     out_q[q_idx + 3] = q[3]
     return
+

@@ -47,6 +47,12 @@ def build_env(env_file, engine_file, num_envs, device, visualize, record_video=F
 
     return env
 
+def get_engine_name(engine_file):
+    engine_config = load_config(engine_file)
+    if engine_config is not None:
+        return engine_config.get("engine_name", "")
+    return ""
+
 def load_config(file):
     if (file is not None and file != ""):
         with open(file, "r") as stream:

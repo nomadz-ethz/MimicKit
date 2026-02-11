@@ -188,6 +188,10 @@ class Engine:
     @abc.abstractmethod
     def get_control_mode(self):
         return
+
+    #abc.abstractmethod
+    def create_video_recorder(self, camera_config=None):
+        return
     
     def draw_lines(self, env_id, start_verts, end_verts, cols, line_width):
         return
