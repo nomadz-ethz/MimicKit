@@ -47,6 +47,15 @@ class VideoRecorder:
         self._annotator: Any | None = None
         self._render_product: Any | None = None
 
+        self._logger_step_tracker: Any | None = None
+
+        return
+
+    def set_logger_step_tracker(self, logger: Any) -> None:
+        """
+        A temporary hack to get the step value from the logger.
+        """
+        self._logger_step_tracker = logger
         return
 
     def _ensure_annotator(self) -> None:
@@ -128,8 +137,7 @@ class VideoRecorder:
             if wandb.run is not None:
                 wandb.log({
                     "video": wandb.Video(temp_path, format="mp4"),
-                    "video_step": self._global_step,
-                })
+                }, step=self._logger_step_tracker.get_current_step())
                 Logger.print("[VideoRecorder] Uploaded video to WandB ({} frames, step {})".format(
                     len(self._recorded_frames), self._global_step))
             else:

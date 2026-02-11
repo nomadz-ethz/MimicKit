@@ -56,6 +56,9 @@ class BaseAgent(torch.nn.Module):
         log_file = os.path.join(out_dir, "log.txt")
         self._logger = self._build_logger(logger_type, log_file, self._config)
 
+        if (self._video_recorder is not None):
+            self._video_recorder.set_logger_step_tracker(self._logger)
+
         if (save_int_models):
             int_out_dir = os.path.join(out_dir, "int_models")
             if (mp_util.is_root_proc() and not os.path.exists(int_out_dir)):
