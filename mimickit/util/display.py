@@ -1,9 +1,11 @@
 import os
 import subprocess
+import time
+from typing import Any
 
 from util.logger import Logger
 
-def ensure_virtual_display(display=":99"):
+def ensure_virtual_display(display: str = ":99") -> None:
     """Start Xvfb virtual display if no DISPLAY is set. Needed for headless Vulkan rendering.
     
     If DISPLAY is already set, uses it (assumes it's valid). Otherwise starts Xvfb on the
@@ -13,9 +15,10 @@ def ensure_virtual_display(display=":99"):
         return
     
     try:
-        subprocess.Popen(["Xvfb", display, "-screen", "0", "1024x768x24"],
-                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        import time
+        process: subprocess.Popen[bytes] = subprocess.Popen(
+            ["Xvfb", display, "-screen", "0", "1024x768x24"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+        )
         time.sleep(1)
         os.environ["DISPLAY"] = display
         Logger.print("Started virtual display on {}".format(display))

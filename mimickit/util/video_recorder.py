@@ -3,12 +3,13 @@ from __future__ import annotations
 import numpy as np
 import os
 import tempfile
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from util.logger import Logger
 
 if TYPE_CHECKING:
     import engines.engine as engine
+    from omni.replicator.core import Annotator, RenderProduct
 
 
 class VideoRecorder:
@@ -43,8 +44,8 @@ class VideoRecorder:
         self._global_step: int = 0
         self._video_count: int = 0
 
-        self._annotator: object | None = None
-        self._render_product: object | None = None
+        self._annotator: Any | None = None
+        self._render_product: Any | None = None
 
         return
 
@@ -70,10 +71,10 @@ class VideoRecorder:
         # Render the scene to update the viewport
         self._engine._sim.render()
 
-        rgb_data = self._annotator.get_data()
+        rgb_data: Any = self._annotator.get_data()
         if rgb_data is None or rgb_data.size == 0:
             # Renderer still warming up
-            frame = np.zeros((self._resolution[1], self._resolution[0], 3), dtype=np.uint8)
+            frame: np.ndarray = np.zeros((self._resolution[1], self._resolution[0], 3), dtype=np.uint8)
         else:
             frame = np.frombuffer(rgb_data, dtype=np.uint8).reshape(*rgb_data.shape)
             frame = frame[:, :, :3]  # drop alpha channel
@@ -117,7 +118,7 @@ class VideoRecorder:
             import wandb
             from moviepy.video.io.ImageSequenceClip import ImageSequenceClip
 
-            clip = ImageSequenceClip(self._recorded_frames, fps=self._fps)
+            clip: ImageSequenceClip = ImageSequenceClip(self._recorded_frames, fps=self._fps)
 
             with tempfile.NamedTemporaryFile(suffix=".mp4", delete=False) as tmp:
                 temp_path: str = tmp.name
