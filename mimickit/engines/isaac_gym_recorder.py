@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+import isaacgym.gymapi as gymapi
+import numpy as np
+
+import engines.video_recorder as video_recorder
+import engines.isaac_gym_engine as isaac_gym_engine
+
+
+class IsaacGymVideoRecorder(video_recorder.VideoRecorder):
+    def __init__(self, 
+                 engine: isaac_gym_engine.IsaacGymEngine, 
+                 fps: int, 
+                 cam_pos: np.array = np.array([-3.5, -3.5, 2.0]),
+                 cam_target: np.array = np.array([0.0, 0.0, 1.0]),
+                 resolution: tuple[int, int] = (854, 480)):
+        
+        super().__init__(fps, resolution)
+
+        self._engine: isaac_gym_engine.IsaacGymEngine = engine
+        self._gym = self._engine.get_gym()
+        self._sim = self._engine.get_sim()
+
+        self._env_id = 0
+        self._obj_id = 0
+        self._cam_pos = cam_pos
+        self._cam_target = cam_target
+        self._camera_ptr = None
+        return
+    
+    def _build_camera(self):
+        camera_props = gymapi.CameraProperties()
+        camera_props.width = self._resolution[0]
+        camera_props.height = self._resolution[1]
+        camera_props.horizontal_fov = 60.0
+
+        env_ptr = self._engine.get_env(self._env_id)
+        camera_ptr = self._gym.create_camera_sensor(env_ptr, camera_props)
+        assert(camera_ptr != -1), "Unable to create video camera."
+        
+        self._camera_ptr = camera_ptr
+        return
+    
+    def _record_frame(self):
+        if (self._camera_ptr is None):
+            self._build_camera()
+
+        tar_pos = self._engine.get_root_pos(self._obj_id)[self._env_id].cpu().numpy()
+        tar_pos[2] = self._cam_target[2]
+        cam_delta = self._cam_pos - self._cam_target
+        cam_pos = tar_pos + cam_delta
+        self._set_camera_pose(cam_pos, tar_pos)
+        
+        self._gym.fetch_results(self._sim, True)
+        self._gym.step_graphics(self._sim)
+        self._gym.render_all_camera_sensors(self._sim)
+        self._gym.start_access_image_tensors(self._sim)
+
+        env_ptr = self._engine.get_env(self._env_id)
+
+        rgb_data = self._gym.get_camera_image(self._sim, env_ptr, self._camera_ptr, gymapi.IMAGE_COLOR)
+        assert(rgb_data is not None), "Failed to render image."
+
+        frame = np.frombuffer(rgb_data, dtype=np.uint8).reshape(self._resolution[1], self._resolution[0], 4)
+        frame = frame[:, :, :3]  # drop alpha channel
+        return frame
+    
+    def _set_camera_pose(self, cam_pos, cam_target):
+        gym_cam_pos = gymapi.Vec3(cam_pos[0], cam_pos[1], cam_pos[2])
+        gym_cam_target = gymapi.Vec3(cam_target[0], cam_target[1], cam_target[2])
+
+        env_ptr = self._engine.get_env(self._env_id)
+        self._gym.set_camera_location(self._camera_ptr, env_ptr, gym_cam_pos, gym_cam_target)
+        return

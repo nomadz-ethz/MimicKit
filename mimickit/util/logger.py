@@ -30,6 +30,7 @@ class Logger:
         self._row_count = 0
         self._need_update = True
         self._data_buffer = None
+        self._step_key = None
         return
 
     def reset(self):
@@ -69,7 +70,11 @@ class Logger:
 
         return
 
-    def log(self, key, val, quiet=False):
+    def set_step_key(self, var_key):
+        self._step_key = var_key
+        return
+
+    def log(self, key, val, collection=None, quiet=False):
         """
         Log a value of some diagnostic
         Call this once for each diagnostic quantity, each iteration

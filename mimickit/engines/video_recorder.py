@@ -4,7 +4,7 @@ import util.video as video
 
 class VideoRecorder:
     def __init__(self, fps, resolution):
-        self._resolution= resolution
+        self._resolution = resolution
         self._video = video.Video(fps)
         return
     
@@ -14,6 +14,8 @@ class VideoRecorder:
 
     def capture_frame(self):
         frame = self._record_frame()
+        assert(frame.shape[0] == self._resolution[1] and frame.shape[1] == self._resolution[0])
+
         self._video.add_frame(frame)
         return
     

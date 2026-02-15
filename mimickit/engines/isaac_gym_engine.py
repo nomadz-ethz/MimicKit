@@ -9,6 +9,8 @@ import torch
 import time
 
 import engines.engine as engine
+import engines.isaac_gym_recorder as isaac_gym_recorder
+from util.logger import Logger
 import util.torch_util as torch_util
 
 def str_to_key_code(key_str):
@@ -44,7 +46,7 @@ class AssetCfg():
 
 
 class IsaacGymEngine(engine.Engine):
-    def __init__(self, config, num_envs, device, visualize):
+    def __init__(self, config, num_envs, device, visualize, record_video=False):
         super().__init__()
         self._device = device
         self._num_envs = num_envs
@@ -57,10 +59,13 @@ class IsaacGymEngine(engine.Engine):
         assert(sim_freq >= control_freq and sim_freq % control_freq == 0), \
             "Simulation frequency must be a multiple of the control frequency"
 
+        if (visualize):
+            record_video = False
+
         self._timestep = 1.0 / control_freq
         self._sim_steps = int(sim_freq / control_freq)
         sim_timestep = 1.0 / sim_freq
-        self._sim = self._create_simulator(sim_timestep, visualize)
+        self._sim = self._create_simulator(sim_timestep, visualize, record_video)
 
         self._ground_contact_height = config.get("ground_contact_height", 0.3)
         self._env_spacing = config["env_spacing"]
@@ -82,6 +87,10 @@ class IsaacGymEngine(engine.Engine):
             self._build_viewer()
             self._keyboard_callbacks = dict()
             self._prev_frame_time = 0.0
+
+        if (record_video):
+            self._recording = False
+            self._build_video_recorder()
 
         return
 
@@ -115,6 +124,9 @@ class IsaacGymEngine(engine.Engine):
         self._update_reset_objs()
         self._apply_cmd()
 
+        if (self.enabled_record_video() and self._recording):
+            self._video_recorder.capture_frame()
+        
         for i in range(self._sim_steps):
             self._pre_sim_step()
             self._sim_step()
@@ -490,7 +502,30 @@ class IsaacGymEngine(engine.Engine):
         self._gym.subscribe_viewer_keyboard_event(self._viewer, key_code, key_str)
         self._keyboard_callbacks[key_str] = callback_func
         return
+    
+    def get_gym(self):
+        return self._gym
+    
+    def get_sim(self):
+        return self._sim
 
+    def enabled_record_video(self):
+        return hasattr(self, "_video_recorder")
+
+    def get_video_recording(self):
+        return self._video_recorder.get_video()
+
+    def start_video_recording(self):
+        if self.enabled_record_video():
+            self._video_recorder.clear()
+            self._recording = True
+        return
+    
+    def stop_video_recording(self):
+        if self.enabled_record_video():
+            self._recording = False
+        return
+    
     def _load_asset(self, file, fix_root):
         asset_cfg = AssetCfg(asset_file=file, fix_root=fix_root)
 
@@ -521,12 +556,12 @@ class IsaacGymEngine(engine.Engine):
         self._gym.add_ground(self._sim, plane_params)
         return
     
-    def _create_simulator(self, sim_timestep, visualize):
+    def _create_simulator(self, sim_timestep, visualize, record_video):
         physics_engine = gymapi.SimType.SIM_PHYSX
         sim_params = self._build_sim_params(sim_timestep)
 
         compute_device_id = self._get_device_idx()
-        if (visualize):
+        if (visualize or record_video):
             graphics_device_id = compute_device_id
         else:
             graphics_device_id = -1
@@ -919,4 +954,11 @@ class IsaacGymEngine(engine.Engine):
                 elif (evt.action in self._keyboard_callbacks):
                     callback = self._keyboard_callbacks[evt.action]
                     callback()
+        return
+
+    def _build_video_recorder(self):
+        timestep = self.get_timestep()
+        fps = int(np.round(1.0 / timestep))
+        self._video_recorder = isaac_gym_recorder.IsaacGymVideoRecorder(self, fps=fps)
+        Logger.print("Video recording enabled")
         return

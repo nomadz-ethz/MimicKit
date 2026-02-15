@@ -14,26 +14,10 @@ if TYPE_CHECKING:
 
 
 class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
-    """Records video frames from the simulation and uploads to WandB.
-    
-    Works with Isaac Lab engine in headless mode using the omni.replicator
-    annotator API to capture viewport images.
-
-    The recorder manages its own camera controls, independent of the environment's
-    visualization camera. This allows recording without interfering with visualization.
-    
-    Args:
-        engine: The simulation engine (e.g. IsaacLabEngine).
-        cam_pos: np.ndarray, camera position [x, y, z]. Defaults to [-4, -4, 2].
-        cam_target: np.ndarray, camera target [x, y, z]. Defaults to [0, 0, 1].
-        resolution: Tuple (width, height) for the captured frames.
-        fps: Frames per second for the output video.
-    """
-
     def __init__(self, 
                  engine: isaac_lab_engine.IsaacLabEngine, 
                  fps: int, 
-                 cam_pos: np.array = np.array([-4.0, -4.0, 2.0]),
+                 cam_pos: np.array = np.array([-3.5, -3.5, 2.0]),
                  cam_target: np.array = np.array([0.0, 0.0, 1.0]),
                  resolution: tuple[int, int] = (854, 480)) -> None:
         
@@ -42,6 +26,9 @@ class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
         self._engine: isaac_lab_engine.IsaacLabEngine = engine
         self._cam_pos = cam_pos
         self._cam_target = cam_target
+
+        self._env_id = 0
+        self._obj_id = 0
         self._annotator = None
         self._render_product = None
         
@@ -49,10 +36,14 @@ class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
         return
     
     def _record_frame(self):
-        self._ensure_annotator()
-        self._engine.set_camera_pose(self._cam_pos, self._cam_target)
-            
-        # Render the scene to update the viewport
+        self._build_annotator()
+
+        tar_pos = self._engine.get_root_pos(self._obj_id)[self._env_id].cpu().numpy()
+        tar_pos[2] = self._cam_target[2]
+        cam_delta = self._cam_pos - self._cam_target
+        cam_pos = tar_pos + cam_delta
+        self._engine.set_camera_pose(cam_pos, tar_pos)
+
         self._engine.render()
 
         rgb_data: Any = self._annotator.get_data()
@@ -65,7 +56,7 @@ class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
 
         return frame
     
-    def _ensure_annotator(self):
+    def _build_annotator(self):
         import omni.replicator.core as rep
 
         video_cam_path = "/OmniverseKit_Persp"  # Use viewport camera (works in headless mode)
@@ -79,12 +70,7 @@ class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
             Logger.print("[VideoRecorder] Created RGB annotator for {}".format(video_cam_path))
         return
 
-    def _ensure_virtual_display(self, display=":99") -> None:
-        """Start Xvfb virtual display if no DISPLAY is set. Needed for headless Vulkan rendering.
-        
-        If DISPLAY is already set, uses it (assumes it's valid). Otherwise starts Xvfb on the
-        specified display number.
-        """
+    def _ensure_virtual_display(self, display=":99"):
         if "DISPLAY" not in os.environ:
             try:
                 process: subprocess.Popen[bytes] = subprocess.Popen(

@@ -13,8 +13,9 @@ import learning.normalizer as normalizer
 import learning.return_tracker as return_tracker
 from util.logger import Logger
 import util.mp_util as mp_util
-import util.tb_logger as tb_logger
 import util.torch_util as torch_util
+import util.logger as logger
+import util.tb_logger as tb_logger
 import util.wandb_logger as wandb_logger
 
 import learning.distribution_gaussian_diag as distribution_gaussian_diag
@@ -215,7 +216,9 @@ class BaseAgent(torch.nn.Module):
         return 0
     
     def _build_logger(self, logger_type, log_file, config):
-        if (logger_type == "tb"):
+        if (logger_type == "txt"):
+            log = logger.Logger()
+        elif (logger_type == "tb"):
             log = tb_logger.TBLogger()
         elif (logger_type == "wandb"):
             log = wandb_logger.WandbLogger("mimickit", config)

@@ -32,12 +32,8 @@ class WandbLogger(logger.Logger):
         
         return
 
-    def set_step_key(self, var_key):
-        self._step_key = var_key
-        return
-
     def log(self, key, val, collection=None, quiet=False):
-        super().log(key, val, quiet)
+        super().log(key, val, collection, quiet)
 
         if (collection is not None):
             self._add_collection(collection, key)

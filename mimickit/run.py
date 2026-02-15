@@ -98,7 +98,7 @@ def run(rank, num_procs, device, master_port, args):
     mode = args.parse_string("mode", "train")
     num_envs = args.parse_int("num_envs", 1)
     visualize = args.parse_bool("visualize", True)
-    logger_type = args.parse_string("logger", "tb")
+    logger_type = args.parse_string("logger", "txt")
     model_file = args.parse_string("model_file", "")
 
     out_dir = args.parse_string("out_dir", "output/")
