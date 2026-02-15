@@ -61,7 +61,7 @@ class ObjCfg:
 
 class IsaacLabEngine(engine.Engine):
     def __init__(self, config, num_envs, device, visualize, record_video=False):
-        super().__init__()
+        super().__init__(visualize=visualize)
 
         self._device = device
         sim_freq = config.get("sim_freq", 60)
@@ -95,7 +95,6 @@ class IsaacLabEngine(engine.Engine):
             self._build_camera()
 
         if (visualize):
-            self._prev_frame_time = 0.0
             self._build_draw_interface()
             self._setup_keyboard()
 
@@ -226,19 +225,8 @@ class IsaacLabEngine(engine.Engine):
     
     def render(self):
         self._sim.render()
-
-        visualize = hasattr(self, "_draw_interface")
-        if (visualize):
-            self._draw_interface.clear_lines()
-
-            now = time.time()
-            delta = now - self._prev_frame_time
-            time_step = self.get_timestep()
-
-            if (delta < time_step):
-                time.sleep(time_step - delta)
-
-            self._prev_frame_time = time.time()
+        self._draw_interface.clear_lines()
+        super().render()
         return
     
     def get_timestep(self):
@@ -599,6 +587,9 @@ class IsaacLabEngine(engine.Engine):
         if self.enabled_record_video():
             self._recording = False
         return
+    
+    def get_sim(self):
+        return self._sim
     
     def _build_ground(self):
         import isaaclab.sim as sim_utils

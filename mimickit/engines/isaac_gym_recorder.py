@@ -18,8 +18,6 @@ class IsaacGymVideoRecorder(video_recorder.VideoRecorder):
         super().__init__(fps, resolution)
 
         self._engine: isaac_gym_engine.IsaacGymEngine = engine
-        self._gym = self._engine.get_gym()
-        self._sim = self._engine.get_sim()
 
         self._env_id = 0
         self._obj_id = 0
@@ -35,7 +33,8 @@ class IsaacGymVideoRecorder(video_recorder.VideoRecorder):
         camera_props.horizontal_fov = 60.0
 
         env_ptr = self._engine.get_env(self._env_id)
-        camera_ptr = self._gym.create_camera_sensor(env_ptr, camera_props)
+        gym = self._engine.get_gym()
+        camera_ptr = gym.create_camera_sensor(env_ptr, camera_props)
         assert(camera_ptr != -1), "Unable to create video camera."
         
         self._camera_ptr = camera_ptr
@@ -51,14 +50,16 @@ class IsaacGymVideoRecorder(video_recorder.VideoRecorder):
         cam_pos = tar_pos + cam_delta
         self._set_camera_pose(cam_pos, tar_pos)
         
-        self._gym.fetch_results(self._sim, True)
-        self._gym.step_graphics(self._sim)
-        self._gym.render_all_camera_sensors(self._sim)
-        self._gym.start_access_image_tensors(self._sim)
+        gym = self._engine.get_gym()
+        sim = self._engine.get_sim()
+        gym.fetch_results(sim, True)
+        gym.step_graphics(sim)
+        gym.render_all_camera_sensors(sim)
+        gym.start_access_image_tensors(sim)
 
         env_ptr = self._engine.get_env(self._env_id)
 
-        rgb_data = self._gym.get_camera_image(self._sim, env_ptr, self._camera_ptr, gymapi.IMAGE_COLOR)
+        rgb_data = gym.get_camera_image(sim, env_ptr, self._camera_ptr, gymapi.IMAGE_COLOR)
         assert(rgb_data is not None), "Failed to render image."
 
         frame = np.frombuffer(rgb_data, dtype=np.uint8).reshape(self._resolution[1], self._resolution[0], 4)
@@ -69,6 +70,7 @@ class IsaacGymVideoRecorder(video_recorder.VideoRecorder):
         gym_cam_pos = gymapi.Vec3(cam_pos[0], cam_pos[1], cam_pos[2])
         gym_cam_target = gymapi.Vec3(cam_target[0], cam_target[1], cam_target[2])
 
+        gym = self._engine.get_gym()
         env_ptr = self._engine.get_env(self._env_id)
-        self._gym.set_camera_location(self._camera_ptr, env_ptr, gym_cam_pos, gym_cam_target)
+        gym.set_camera_location(self._camera_ptr, env_ptr, gym_cam_pos, gym_cam_target)
         return

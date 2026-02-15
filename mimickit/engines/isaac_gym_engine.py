@@ -47,7 +47,7 @@ class AssetCfg():
 
 class IsaacGymEngine(engine.Engine):
     def __init__(self, config, num_envs, device, visualize, record_video=False):
-        super().__init__()
+        super().__init__(visualize=visualize)
         self._device = device
         self._num_envs = num_envs
         self._asset_cache = dict()
@@ -86,7 +86,6 @@ class IsaacGymEngine(engine.Engine):
         if (visualize):
             self._build_viewer()
             self._keyboard_callbacks = dict()
-            self._prev_frame_time = 0.0
 
         if (record_video):
             self._recording = False
@@ -250,17 +249,8 @@ class IsaacGymEngine(engine.Engine):
         # Wait for dt to elapse in real time.
         # This synchronizes the physics simulation with the rendering rate.
         self._gym.sync_frame_time(self._sim)
-
-        # it seems that in some cases sync_frame_time still results in higher-than-realtime framerate
-        # this code will slow down the rendering to real time
-        now = time.time()
-        delta = now - self._prev_frame_time
-        time_step = self.get_timestep()
-
-        if (delta < time_step):
-            time.sleep(time_step - delta)
-
-        self._prev_frame_time = time.time()
+        
+        super().render()
         return
     
     def get_timestep(self):

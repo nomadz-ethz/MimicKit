@@ -44,7 +44,8 @@ class IsaacLabVideoRecorder(video_recorder.VideoRecorder):
         cam_pos = tar_pos + cam_delta
         self._engine.set_camera_pose(cam_pos, tar_pos)
 
-        self._engine.render()
+        sim = self._engine.get_sim()
+        sim.render()
 
         rgb_data: Any = self._annotator.get_data()
         if rgb_data is None or rgb_data.size == 0:

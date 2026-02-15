@@ -306,7 +306,7 @@ class ObjCfg():
 
 class NewtonEngine(engine.Engine):
     def __init__(self, config, num_envs, device, visualize):
-        super().__init__()
+        super().__init__(visualize=visualize)
 
         self._device = device
         self._num_envs = num_envs
@@ -340,7 +340,6 @@ class NewtonEngine(engine.Engine):
         if (visualize):
             self._build_viewer()
             self._obj_colors = []
-            self._prev_frame_time = 0.0
             self._keyboard_callbacks = dict()
         else:
             self._viewer = None
@@ -480,14 +479,7 @@ class NewtonEngine(engine.Engine):
 
         self._draw_line_count = 0
         
-        now = time.time()
-        delta = now - self._prev_frame_time
-        time_step = self.get_timestep()
-
-        if (delta < time_step):
-            time.sleep(time_step - delta)
-
-        self._prev_frame_time = time.time()
+        super().render()
         return
     
     def get_timestep(self):

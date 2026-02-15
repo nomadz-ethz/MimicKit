@@ -1,5 +1,6 @@
 import abc
 import enum
+import time
 
 class ControlMode(enum.Enum):
     none = 0
@@ -13,7 +14,10 @@ class ObjType(enum.Enum):
     articulated = 1
 
 class Engine:
-    def __init__(self):
+    def __init__(self, visualize):
+        self._visualize = visualize
+        if (self._visualize):
+            self._prev_frame_time = 0.0
         return
     
     @abc.abstractmethod
@@ -55,6 +59,14 @@ class Engine:
     
     @abc.abstractmethod
     def render(self):
+        now = time.time()
+        delta = now - self._prev_frame_time
+        time_step = self.get_timestep()
+
+        if (delta < time_step):
+            time.sleep(time_step - delta)
+
+        self._prev_frame_time = time.time()
         return
     
     @abc.abstractmethod
