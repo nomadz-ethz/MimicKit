@@ -15,8 +15,7 @@ class ObjType(enum.Enum):
 
 class Engine:
     def __init__(self, visualize):
-        self._visualize = visualize
-        if (self._visualize):
+        if (visualize):
             self._prev_frame_time = 0.0
         return
     
