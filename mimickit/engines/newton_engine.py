@@ -1104,14 +1104,12 @@ class NewtonEngine(engine.Engine):
         return self._video_recorder.get_video()
 
     def start_video_recording(self):
-        if self.enabled_record_video():
-            self._video_recorder.clear()
-            self._recording = True
+        self._video_recorder.clear()
+        self._recording = True
         return
 
     def stop_video_recording(self):
-        if self.enabled_record_video():
-            self._recording = False
+        self._recording = False
         return
 
     def _build_video_recorder(self) -> newton_recorder.NewtonVideoRecorder:
