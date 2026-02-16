@@ -9,6 +9,7 @@ import torch
 import pyglet
 
 import engines.engine as engine
+import engines.newton_recorder as newton_recorder
 from util.logger import Logger
 
 def str_to_key_code(key_str):
@@ -305,7 +306,7 @@ class ObjCfg():
 
 
 class NewtonEngine(engine.Engine):
-    def __init__(self, config, num_envs, device, visualize):
+    def __init__(self, config, num_envs, device, visualize, record_video=False):
         super().__init__(visualize=visualize)
 
         self._device = device
@@ -343,6 +344,12 @@ class NewtonEngine(engine.Engine):
             self._keyboard_callbacks = dict()
         else:
             self._viewer = None
+
+        self._record_video = record_video
+        # it is True when we want to record video and are currently in the process of recording
+        self._recording = False
+        # will be initialized in initialize_sim since it needs the sim model
+        self._video_recorder = None
 
         return
     
@@ -387,10 +394,16 @@ class NewtonEngine(engine.Engine):
         if (self._visualize()):
             self._init_rendering()
         
+        if self._record_video:
+            self._video_recorder = self._build_video_recorder()
+
         self._build_graphs()
         return
     
     def step(self):
+        if (self.enabled_record_video() and self._recording):
+            self._video_recorder.capture_frame()
+
         if (self._graph):
             wp.capture_launch(self._graph)
         else:
@@ -1077,6 +1090,29 @@ class NewtonEngine(engine.Engine):
             callback = self._keyboard_callbacks[symbol]
             callback()
         return
+
+    def enabled_record_video(self):
+        return self._record_video
+
+    def get_video_recording(self):
+        return self._video_recorder.get_video()
+
+    def start_video_recording(self):
+        if self.enabled_record_video():
+            self._video_recorder.clear()
+            self._recording = True
+        return
+
+    def stop_video_recording(self):
+        if self.enabled_record_video():
+            self._recording = False
+        return
+
+    def _build_video_recorder(self) -> newton_recorder.NewtonVideoRecorder:
+        timestep = self.get_timestep()
+        fps = int(np.round(1.0 / timestep))
+        Logger.print("Video recording enabled")
+        return newton_recorder.NewtonVideoRecorder(self, fps=fps)
 
 
 @wp.kernel
