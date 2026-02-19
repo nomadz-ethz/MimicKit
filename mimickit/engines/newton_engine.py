@@ -344,12 +344,10 @@ class NewtonEngine(engine.Engine):
         else:
             self._viewer = None
 
-        self._record_video = record_video
-        # it is True when we want to record video and are currently in the process of recording
-        self._recording = False
-        # will be initialized in initialize_sim since it needs the sim model
-        self._video_recorder = None
-
+        if (visualize):
+            self._record_video = False
+        else:
+            self._record_video = record_video
         return
     
     def get_name(self):
@@ -392,8 +390,9 @@ class NewtonEngine(engine.Engine):
             self.init_viewer(self._viewer)
             self._camera_offsets = self._viewer.world_offsets.numpy()
         
-        if self._record_video:
+        if self.enabled_record_video():
             self._video_recorder = self._build_video_recorder()
+            self._recording = False
 
         self._build_graphs()
         return
