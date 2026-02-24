@@ -1,4 +1,4 @@
-# Adversarial Motion Priors (AMP)
+# AMP - Adversarial Motion Priors
 
 ![AMP](../images/AMP_teaser.png)
 

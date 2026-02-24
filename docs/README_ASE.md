@@ -1,4 +1,4 @@
-# Adversarial Skill Embeddings (ASE)
+# ASE - Adversarial Skill Embeddings
 
 ![ASE](../images/ASE_teaser.png)
 
