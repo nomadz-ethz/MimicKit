@@ -143,7 +143,7 @@ class BaseAgent(torch.nn.Module):
         params = self.parameters()
         num_params = sum(p.numel() for p in params if p.requires_grad)
         return num_params
-
+    
     def _load_params(self, config):
         self._discount = config["discount"]
         self._iters_per_output = config["iters_per_output"]
@@ -151,10 +151,6 @@ class BaseAgent(torch.nn.Module):
         self._test_episodes = config["test_episodes"]
         
         self._steps_per_iter = config["steps_per_iter"]
-        return
-
-    @abc.abstractmethod
-    def _build_model(self, config):
         return
 
     def _build_normalizers(self):
@@ -187,18 +183,7 @@ class BaseAgent(torch.nn.Module):
             assert(False), "Unsupported action space: {}".format(a_space)
 
         return a_norm
-
-    def _build_optimizer(self, config):
-        opt_config = config["optimizer"]
-        params = list(self.parameters())
-        params = [p for p in params if p.requires_grad]
-        self._optimizer = mp_optimizer.MPOptimizer(opt_config, params)
-        return
     
-    def _sync_optimizer(self):
-        self._optimizer.sync()
-        return
-
     def _build_exp_buffer(self, config):
         buffer_length = self._get_exp_buffer_length()
         batch_size = self.get_num_envs()
@@ -211,10 +196,6 @@ class BaseAgent(torch.nn.Module):
         self._test_return_tracker = return_tracker.ReturnTracker(self.get_num_envs(), self._device)
         return
 
-    @abc.abstractmethod
-    def _get_exp_buffer_length(self):
-        return 0
-    
     def _build_logger(self, logger_type, log_file, config):
         if (logger_type == "txt"):
             log = logger.Logger()
@@ -319,12 +300,6 @@ class BaseAgent(torch.nn.Module):
             }
         return test_info
 
-    @abc.abstractmethod
-    def _decide_action(self, obs, info):
-        a = None
-        a_info = dict()
-        return a, a_info
-
     def _step_env(self, action):
         obs, r, done, info = self._env.step(action)
         return obs, r, done, info
@@ -362,10 +337,6 @@ class BaseAgent(torch.nn.Module):
 
     def _build_train_data(self):
         return dict()
-
-    @abc.abstractmethod
-    def _update_model(self):
-        return
 
     def _compute_succ_val(self):
         r_succ = self._env.get_reward_succ()
@@ -415,11 +386,13 @@ class BaseAgent(torch.nn.Module):
         
         obs_norm_mean = self._obs_norm.get_mean()
         obs_norm_std = self._obs_norm.get_std()
-        obs_norm_mean = torch.mean(torch.abs(obs_norm_mean)).item()
-        obs_norm_std = torch.mean(obs_norm_std).item()
 
-        self._logger.log("Obs_Norm_Mean", obs_norm_mean, quiet=True)
-        self._logger.log("Obs_Norm_Std", obs_norm_std, quiet=True)
+        if (obs_norm_mean.dtype == torch.float32):
+            obs_norm_mean = torch.mean(torch.abs(obs_norm_mean)).item()
+            obs_norm_std = torch.mean(obs_norm_std).item()
+            self._logger.log("Obs_Norm_Mean", obs_norm_mean, quiet=True)
+            self._logger.log("Obs_Norm_Std", obs_norm_std, quiet=True)
+        
         return
     
     def _compute_action_bound_loss(self, norm_a_dist):
@@ -450,4 +423,30 @@ class BaseAgent(torch.nn.Module):
         if (int_out_dir != ""):
             int_model_file = os.path.join(int_out_dir, "model_{:010d}.pt".format(iter))
             self.save(int_model_file)
+        return
+    
+    @abc.abstractmethod
+    def _build_model(self, config):
+        return
+    
+    @abc.abstractmethod
+    def _build_optimizer(self, config):
+        return
+
+    @abc.abstractmethod
+    def _get_exp_buffer_length(self):
+        return 0
+    
+    @abc.abstractmethod
+    def _sync_optimizer(self):
+        return
+
+    @abc.abstractmethod
+    def _decide_action(self, obs, info):
+        a = None
+        a_info = dict()
+        return a, a_info
+    
+    @abc.abstractmethod
+    def _update_model(self):
         return

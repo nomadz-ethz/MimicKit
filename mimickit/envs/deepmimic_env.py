@@ -307,7 +307,6 @@ class DeepMimicEnv(char_env.CharEnv):
         if (self._enable_ref_char()):
             ref_char_col = self._get_ref_char_color()
             ref_char_id = self._build_ref_character(env_id, config, color=ref_char_col)
-            self._ref_char_ids.append(ref_char_id)
             
             if (env_id == 0):
                 self._ref_char_ids.append(ref_char_id)

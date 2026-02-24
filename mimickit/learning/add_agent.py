@@ -41,20 +41,37 @@ class ADDAgent(amp_agent.AMPAgent):
         self._exp_buffer.record("disc_obs", disc_obs)
         return
     
-    def _build_train_data(self):
-        reward_info = self._compute_rewards()
-        info = super(amp_agent.AMPAgent, self)._build_train_data()
-        info = {**info, **reward_info}
-        return info
+    def _record_disc_demo_data(self):
+        return
     
-    def _compute_rewards(self):
-        task_r = self._exp_buffer.get_data_flat("reward")
-        
+    def _store_disc_replay_data(self):
         disc_obs = self._exp_buffer.get_data_flat("disc_obs")
         disc_obs_demo = self._exp_buffer.get_data_flat("disc_obs_demo")
-        obs_diff = disc_obs_demo - disc_obs
-        self._store_disc_replay_data(obs_diff)
 
+        n = disc_obs.shape[0]
+        rand_idx = torch.randperm(n, device=self._device, dtype=torch.long)
+        
+        if (self._disc_buffer.is_full()):
+            num_samples = min(n, self._disc_replay_samples)
+        else:
+            num_samples = n
+        
+        idx = rand_idx[:num_samples]
+        replay_disc_obs = disc_obs[idx]
+        replay_disc_obs_demo = disc_obs_demo[idx]
+        disc_data = {
+            "disc_obs": replay_disc_obs.unsqueeze(1),
+            "disc_obs_demo": replay_disc_obs_demo.unsqueeze(1)
+        }
+        self._disc_buffer.push(disc_data)
+        return
+
+    def _compute_rewards(self):
+        task_r = self._exp_buffer.get_data_flat("reward")
+        disc_obs = self._exp_buffer.get_data_flat("disc_obs")
+        disc_obs_demo = self._exp_buffer.get_data_flat("disc_obs_demo")
+
+        obs_diff = disc_obs_demo - disc_obs
         norm_obs_diff = self._disc_obs_norm.normalize(obs_diff)
         disc_r = self._calc_disc_rewards(norm_obs_diff)
 
@@ -75,18 +92,18 @@ class ADDAgent(amp_agent.AMPAgent):
         disc_obs = batch["disc_obs"]
         tar_disc_obs = batch["disc_obs_demo"]
 
-        pos_diff = self._pos_diff
+        pos_diff = self._pos_diff.clone()
         pos_diff = pos_diff.unsqueeze(dim=0)
+        pos_diff.requires_grad_(True)
         disc_pos_logit = self._model.eval_disc(pos_diff)
         disc_pos_logit = disc_pos_logit.squeeze(-1)
         
-        diff_samples = int(np.ceil(self._disc_batch_size / 2))
-        disc_obs = disc_obs[:diff_samples]
-        tar_disc_obs = tar_disc_obs[:diff_samples]
         diff_obs = tar_disc_obs - disc_obs
         
         replay_data = self._disc_buffer.sample(diff_obs.shape[0])
-        replay_diff = replay_data["disc_obs"]
+        replay_disc_obs = replay_data["disc_obs"]
+        replay_tar_disc_obs = replay_data["disc_obs_demo"]
+        replay_diff = replay_tar_disc_obs - replay_disc_obs
         diff_obs = torch.cat([diff_obs, replay_diff], dim=0)
 
         norm_diff_obs = self._disc_obs_norm.normalize(diff_obs)
@@ -109,16 +126,15 @@ class ADDAgent(amp_agent.AMPAgent):
                                             create_graph=True, retain_graph=True, only_inputs=True)
         disc_neg_grad = disc_neg_grad[0]
         disc_neg_grad_squared = torch.sum(torch.square(disc_neg_grad), dim=-1)
-        disc_grad_penalty = torch.mean(disc_neg_grad_squared)
+
+        disc_pos_grad = torch.autograd.grad(disc_pos_logit, pos_diff, grad_outputs=torch.ones_like(disc_pos_logit),
+                                             create_graph=True, retain_graph=True, only_inputs=True)
+        disc_pos_grad = disc_pos_grad[0]
+        disc_pos_grad_squared = torch.sum(torch.square(disc_pos_grad), dim=-1)
+
+        disc_grad_penalty = 0.5 * (torch.mean(disc_neg_grad_squared) + torch.mean(disc_pos_grad_squared))
         disc_loss += self._disc_grad_penalty * disc_grad_penalty
-
-        # weight decay
-        if (self._disc_weight_decay != 0):
-            disc_weights = self._model.get_disc_weights()
-            disc_weights = torch.cat(disc_weights, dim=-1)
-            disc_weight_decay = torch.sum(torch.square(disc_weights))
-            disc_loss += self._disc_weight_decay * disc_weight_decay
-
+        
         disc_neg_acc, disc_pos_acc = self._compute_disc_acc(disc_neg_logit, disc_pos_logit)
         disc_pos_logit_mean = torch.mean(disc_pos_logit)
         disc_neg_logit_mean = torch.mean(disc_neg_logit)

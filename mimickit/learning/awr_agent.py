@@ -4,6 +4,7 @@ import torch
 import envs.base_env as base_env
 import learning.base_agent as base_agent
 import learning.awr_model as awr_model
+import learning.mp_optimizer as mp_optimizer
 import learning.rl_util as rl_util
 import util.mp_util as mp_util
 import util.torch_util as torch_util
@@ -16,9 +17,11 @@ class AWRAgent(base_agent.BaseAgent):
     def _load_params(self, config):
         super()._load_params(config)
         
-        self._update_epochs = config["update_epochs"]
-        self._batch_size = config["batch_size"]
-
+        self._actor_epochs = config["actor_epochs"]
+        self._actor_batch_size = config["actor_batch_size"]
+        self._critic_epochs = config["critic_epochs"]
+        self._critic_batch_size = config["critic_batch_size"]
+        
         self._td_lambda = config["td_lambda"]
         self._awr_temp = config["awr_temp"]
         self._a_weight_clip = config["a_weight_clip"]
@@ -27,7 +30,6 @@ class AWRAgent(base_agent.BaseAgent):
         self._action_entropy_weight = config["action_entropy_weight"]
         self._action_reg_weight = config["action_reg_weight"]
 
-        self._critic_loss_weight = config["critic_loss_weight"]
         self._critic_eval_batch_size = int(config.get("critic_eval_batch_size", 0))
         
         self._exp_anneal_samples = config.get("exp_anneal_samples", np.inf)
@@ -38,6 +40,23 @@ class AWRAgent(base_agent.BaseAgent):
     def _build_model(self, config):
         model_config = config["model"]
         self._model = awr_model.AWRModel(model_config, self._env)
+        return
+    
+    def _build_optimizer(self, config):
+        actor_config = config["actor_optimizer"]
+        actor_params = list(self._model.get_actor_params())
+        actor_params = [p for p in actor_params if p.requires_grad]
+        self._actor_optimizer = mp_optimizer.MPOptimizer(actor_config, actor_params)
+        
+        critic_config = config["critic_optimizer"]
+        critic_params = list(self._model.get_critic_params())
+        critic_params = [p for p in critic_params if p.requires_grad]
+        self._critic_optimizer = mp_optimizer.MPOptimizer(critic_config, critic_params)
+        return
+    
+    def _sync_optimizer(self):
+        self._actor_optimizer.sync()
+        self._critic_optimizer.sync()
         return
     
     def _get_exp_buffer_length(self):
@@ -145,47 +164,56 @@ class AWRAgent(base_agent.BaseAgent):
         else:
             prob = self._exp_prob_beg
         return prob
-
+    
     def _update_model(self):
         self.train()
-
+        
         num_envs = self.get_num_envs()
         num_samples = self._exp_buffer.get_sample_count()
-        batch_size = self._batch_size * num_envs
-        num_batches = int(np.ceil(float(num_samples) / batch_size))
-        train_info = dict()
 
-        for i in range(self._update_epochs):
-            for b in range(num_batches):
-                batch = self._exp_buffer.sample(batch_size)
-                loss_info = self._compute_loss(batch)
-                loss = loss_info["loss"]
-                self._optimizer.step(loss)
-
-                torch_util.add_torch_dict(loss_info, train_info)
+        critic_batch_size = int(np.ceil(self._critic_batch_size * num_envs))
+        num_critic_batches = int(np.ceil(float(num_samples) / critic_batch_size))
+        num_critic_steps = num_critic_batches * self._critic_epochs
+        critic_info = self._update_critic(critic_batch_size, num_critic_steps)
         
-        num_steps = self._update_epochs * num_batches
-        torch_util.scale_torch_dict(1.0 / num_steps, train_info)
-
+        actor_batch_size = int(np.ceil(self._actor_batch_size * num_envs))
+        num_actor_batches = int(np.ceil(float(num_samples) / actor_batch_size))
+        num_actor_steps = num_actor_batches * self._actor_epochs
+        actor_info = self._update_actor(actor_batch_size, num_actor_steps)
+        
+        train_info = {**critic_info, **actor_info}
         return train_info
+    
+    def _update_critic(self, batch_size, steps):
+        info = dict()
 
-    def _compute_loss(self, batch):
-        batch["norm_obs"] = self._obs_norm.normalize(batch["obs"])
-        batch["norm_action"] = self._a_norm.normalize(batch["action"])
+        for i in range(steps):
+            batch = self._exp_buffer.sample(batch_size)
+            loss_info = self._compute_critic_loss(batch)
+            loss = loss_info["critic_loss"]
+            self._critic_optimizer.step(loss)
 
-        critic_info = self._compute_critic_loss(batch)
-        actor_info = self._compute_actor_loss(batch)
-
-        critic_loss = critic_info["critic_loss"]
-        actor_loss = actor_info["actor_loss"]
-
-        loss = actor_loss + self._critic_loss_weight * critic_loss
-
-        info = {"loss":loss, **critic_info, **actor_info}
+            torch_util.add_torch_dict(loss_info, info)
+        
+        torch_util.scale_torch_dict(1.0 / steps, info)
         return info
 
+    def _update_actor(self, batch_size, num_steps):
+        info = dict()
+
+        for i in range(num_steps):
+            batch = self._exp_buffer.sample(batch_size)
+            loss_info = self._compute_actor_loss(batch)
+            loss = loss_info["actor_loss"]
+            self._actor_optimizer.step(loss)
+
+            torch_util.add_torch_dict(loss_info, info)
+        
+        torch_util.scale_torch_dict(1.0 / num_steps, info)
+        return info
+    
     def _compute_critic_loss(self, batch):
-        norm_obs = batch["norm_obs"]
+        norm_obs = self._obs_norm.normalize(batch["obs"])
         tar_val = batch["tar_val"]
         pred = self._model.eval_critic(norm_obs)
         pred = pred.squeeze(-1)
@@ -199,8 +227,8 @@ class AWRAgent(base_agent.BaseAgent):
         return info
 
     def _compute_actor_loss(self, batch):
-        norm_obs = batch["norm_obs"]
-        norm_a = batch["norm_action"]
+        norm_obs = self._obs_norm.normalize(batch["obs"])
+        norm_a = self._a_norm.normalize(batch["action"])
         a_weight = batch["a_weight"]
         rand_action_mask = batch["rand_action_mask"]
 

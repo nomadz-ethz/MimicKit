@@ -21,6 +21,14 @@ class AWRModel(base_model.BaseModel):
         val = self._critic_out(h)
         return val
     
+    def get_actor_params(self):
+        params = list(self._actor_layers.parameters()) + list(self._action_dist.parameters())
+        return params
+    
+    def get_critic_params(self):
+        params = list(self._critic_layers.parameters()) + list(self._critic_out.parameters())
+        return params
+    
     def _build_nets(self, config, env):
         self._build_actor(config, env)
         self._build_critic(config, env)

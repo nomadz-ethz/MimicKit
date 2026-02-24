@@ -10,13 +10,13 @@ This framework provides a suite of motion imitation methods for training motion 
 
 This codebase includes implementations of:
 - [DeepMimic](https://xbpeng.github.io/projects/DeepMimic/index.html)
-- [AMP](https://xbpeng.github.io/projects/AMP/index.html)
-- [ASE](https://xbpeng.github.io/projects/ASE/index.html)
-- [ADD](https://xbpeng.github.io/projects/ADD/index.html)
+- [AMP - Adversarial Motion Priors](https://xbpeng.github.io/projects/AMP/index.html)
+- [ASE - Adversarial Skill Embeddings](https://xbpeng.github.io/projects/ASE/index.html)
+- [ADD - Adversarial Differential Discriminator](https://xbpeng.github.io/projects/ADD/index.html)
 
 We also include the following RL algorithms:
-- [PPO](https://arxiv.org/abs/1707.06347)
-- [AWR](https://xbpeng.github.io/projects/AWR/index.html)
+- [PPO - Proximal Policy Optimization](https://arxiv.org/abs/1707.06347)
+- [AWR - Advantage-Weighted Regression](https://xbpeng.github.io/projects/AWR/index.html)
 
 ---
 
@@ -102,9 +102,9 @@ python mimickit/run.py --arg_file args/deepmimic_humanoid_ppo_args.txt --devices
 
 More detailed instructions for each method are available here:
 - [DeepMimic](docs/README_DeepMimic.md)
-- [AMP](docs/README_AMP.md)
-- [ASE](docs/README_ASE.md)
-- [ADD](docs/README_ADD.md)
+- [AMP - Adversarial Motion Priors](docs/README_AMP.md)
+- [ASE - Adversarial Skill Embeddings](docs/README_ASE.md)
+- [ADD - Adversarial Differential Discriminator](docs/README_ADD.md)
 
 
 ## Visualizer UI
@@ -163,101 +163,3 @@ If you find this codebase helpful, please cite:
       primaryClass={cs.GR},
       url={https://arxiv.org/abs/2510.13794}, 
 }
-```
-Please also consider citing the relevant papers:
-```
-@article{
-	2018-TOG-deepMimic,
-	author = {Peng, Xue Bin and Abbeel, Pieter and Levine, Sergey and van de Panne, Michiel},
-	title = {DeepMimic: Example-guided Deep Reinforcement Learning of Physics-based Character Skills},
-	journal = {ACM Trans. Graph.},
-	issue_date = {August 2018},
-	volume = {37},
-	number = {4},
-	month = jul,
-	year = {2018},
-	issn = {0730-0301},
-	pages = {143:1--143:14},
-	articleno = {143},
-	numpages = {14},
-	url = {http://doi.acm.org/10.1145/3197517.3201311},
-	doi = {10.1145/3197517.3201311},
-	acmid = {3201311},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	keywords = {motion control, physics-based character animation, reinforcement learning},
-}
-
-@article{
-	AWRPeng19,
-	author = {Xue Bin Peng and Aviral Kumar and Grace Zhang and Sergey Levine},
-	title = {Advantage-Weighted Regression: Simple and Scalable Off-Policy Reinforcement Learning},
-	journal = {CoRR},
-	volume = {abs/1910.00177},
-	year = {2019},
-	url = {https://arxiv.org/abs/1910.00177},
-	archivePrefix = {arXiv},
-	eprint = {1910.00177},
-	timestamp = {Tue, 01 October 2019 11:27:50 +0200},
-	bibsource = {dblp computer science bibliography, https://dblp.org}
-}
-
-@article{
-	2021-TOG-AMP,
-	author = {Peng, Xue Bin and Ma, Ze and Abbeel, Pieter and Levine, Sergey and Kanazawa, Angjoo},
-	title = {AMP: Adversarial Motion Priors for Stylized Physics-Based Character Control},
-	journal = {ACM Trans. Graph.},
-	issue_date = {August 2021},
-	volume = {40},
-	number = {4},
-	month = jul,
-	year = {2021},
-	articleno = {1},
-	numpages = {15},
-	url = {http://doi.acm.org/10.1145/3450626.3459670},
-	doi = {10.1145/3450626.3459670},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	keywords = {motion control, physics-based character animation, reinforcement learning},
-}
-
-@article{
-	2022-TOG-ASE,
-	author = {Peng, Xue Bin and Guo, Yunrong and Halper, Lina and Levine, Sergey and Fidler, Sanja},
-	title = {ASE: Large-scale Reusable Adversarial Skill Embeddings for Physically Simulated Characters},
-	journal = {ACM Trans. Graph.},
-	issue_date = {August 2022},
-	volume = {41},
-	number = {4},
-	month = jul,
-	year = {2022},
-	articleno = {94},
-	publisher = {ACM},
-	address = {New York, NY, USA},
-	keywords = {motion control, physics-based character animation, reinforcement learning}
-}
-
-@inproceedings{
-	xu2025parc,
-	author = {Xu, Michael and Shi, Yi and Yin, KangKang and Peng, Xue Bin},
-	title = {PARC: Physics-based Augmentation with Reinforcement Learning for Character Controllers},
-	year = {2025},
-	isbn = {9798400715402},
-	publisher = {Association for Computing Machinery},
-	address = {New York, NY, USA},
-	url = {https://doi.org/10.1145/3721238.3730616},
-	doi = {10.1145/3721238.3730616},
-	booktitle = {Proceedings of the Special Interest Group on Computer Graphics and Interactive Techniques Conference Conference Papers},
-	articleno = {131},
-	numpages = {11},
-	series = {SIGGRAPH Conference Papers '25}
-}
-
-@inproceedings{
-	zhang2025ADD,
-    author={Zhang, Ziyu and Bashkirov, Sergey and Yang, Dun and Shi, Yi and Taylor, Michael and Peng, Xue Bin},
-    title = {Physics-Based Motion Imitation with Adversarial Differential Discriminators},
-    year = {2025},
-    booktitle = {SIGGRAPH Asia 2025 Conference Papers (SIGGRAPH Asia '25 Conference Papers)}
-}
-```

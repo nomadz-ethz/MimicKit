@@ -29,15 +29,10 @@ class ASEModel(amp_model.AMPModel):
         z = torch.nn.functional.normalize(unorm_z, dim=-1)
         return z
     
-    def get_enc_weights(self):
-        weights = []
-        for m in self._enc_layers.modules():
-            if hasattr(m, "weight"):
-                weights.append(torch.flatten(m.weight))
-
-        weights.append(torch.flatten(self._enc_out.weight))
-        return weights
-
+    def get_enc_params(self):
+        params = list(self._enc_layers.parameters()) + list(self._enc_out.parameters())
+        return params
+    
     def get_latent_dim(self):
         return self._enc_out.out_features
 

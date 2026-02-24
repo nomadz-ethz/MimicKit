@@ -3,6 +3,7 @@ import torch
 
 import learning.amp_model as amp_model
 import learning.experience_buffer as experience_buffer
+import learning.mp_optimizer as mp_optimizer
 import learning.normalizer as normalizer
 import learning.ppo_agent as ppo_agent
 import util.torch_util as torch_util
@@ -15,12 +16,11 @@ class AMPAgent(ppo_agent.PPOAgent):
     def _load_params(self, config):
         super()._load_params(config)
         
-        self._disc_replay_samples = config["disc_replay_samples"]
+        self._disc_epochs = config["disc_epochs"]
         self._disc_batch_size = config["disc_batch_size"]
-        self._disc_loss_weight = config["disc_loss_weight"]
+        self._disc_replay_samples = config["disc_replay_samples"]
         self._disc_logit_reg = config["disc_logit_reg"]
         self._disc_grad_penalty = config["disc_grad_penalty"]
-        self._disc_weight_decay = config["disc_weight_decay"]
         self._disc_reward_scale = config["disc_reward_scale"]
         self._disc_eval_batch_size = int(config.get("disc_eval_batch_size", 0))
 
@@ -32,7 +32,21 @@ class AMPAgent(ppo_agent.PPOAgent):
         model_config = config["model"]
         self._model = amp_model.AMPModel(model_config, self._env)
         return
+    
+    def _build_optimizer(self, config):
+        super()._build_optimizer(config)
 
+        disc_config = config["disc_optimizer"]
+        disc_params = list(self._model.get_disc_params())
+        disc_params = [p for p in disc_params if p.requires_grad]
+        self._disc_optimizer = mp_optimizer.MPOptimizer(disc_config, disc_params)
+        return
+    
+    def _sync_optimizer(self):
+        super()._sync_optimizer()
+        self._disc_optimizer.sync()
+        return
+    
     def _build_exp_buffer(self, config):
         super()._build_exp_buffer(config)
 
@@ -66,8 +80,10 @@ class AMPAgent(ppo_agent.PPOAgent):
 
     def _build_train_data(self):
         self._record_disc_demo_data()
+        self._store_disc_replay_data()
+
         reward_info = self._compute_rewards()
-        
+
         info = super()._build_train_data()
         info = {**info, **reward_info}
         return info
@@ -79,11 +95,11 @@ class AMPAgent(ppo_agent.PPOAgent):
         disc_obs_demo = self._env.fetch_disc_obs_demo(n)
         self._exp_buffer.set_data_flat("disc_obs_demo", disc_obs_demo)
         self._disc_obs_norm.record(disc_obs_demo)
-        
-        self._store_disc_replay_data(disc_obs)
         return
 
-    def _store_disc_replay_data(self, disc_obs):
+    def _store_disc_replay_data(self):
+        disc_obs = self._exp_buffer.get_data_flat("disc_obs")
+
         n = disc_obs.shape[0]
         rand_idx = torch.randperm(n, device=self._device, dtype=torch.long)
         
@@ -114,34 +130,47 @@ class AMPAgent(ppo_agent.PPOAgent):
             "disc_reward_std": disc_reward_std
         }
         return info
+    
+    def _update_model(self):
+        info = super()._update_model()
+        
+        num_envs = self.get_num_envs()
+        num_samples = self._exp_buffer.get_sample_count()
 
-    def _compute_loss(self, batch):
-        info = super()._compute_loss(batch)
-
-        disc_info = self._compute_disc_loss(batch)
-        disc_loss = disc_info["disc_loss"]
-
-        loss = info["loss"]
-        loss = loss + self._disc_loss_weight * disc_loss
-        info["loss"] = loss
+        disc_batch_size = int(np.ceil(self._disc_batch_size * num_envs))
+        num_disc_batches = int(np.ceil(float(num_samples) / disc_batch_size))
+        num_disc_steps = num_disc_batches * self._disc_epochs
+        disc_info = self._update_disc(disc_batch_size, num_disc_steps)
+        
         info = {**info, **disc_info}
+        return info
+
+    def _update_disc(self, batch_size, steps):
+        info = dict()
+
+        for i in range(steps):
+            batch = self._exp_buffer.sample(batch_size)
+            loss_info = self._compute_disc_loss(batch)
+            loss = loss_info["disc_loss"]
+            self._disc_optimizer.step(loss)
+
+            torch_util.add_torch_dict(loss_info, info)
+        
+        torch_util.scale_torch_dict(1.0 / steps, info)
         return info
     
     def _compute_disc_loss(self, batch):
         disc_obs = batch["disc_obs"]
         disc_demo_obs = batch["disc_obs_demo"]
 
-        disc_demo_obs = disc_demo_obs[:self._disc_batch_size]
         norm_disc_obs_demo = self._disc_obs_norm.normalize(disc_demo_obs)
         norm_disc_obs_demo.requires_grad_(True)
         
-        agent_samples = int(np.ceil(self._disc_batch_size / 2))
-        disc_obs = disc_obs[:agent_samples]
-
         replay_data = self._disc_buffer.sample(disc_obs.shape[0])
         replay_obs = replay_data["disc_obs"]
         disc_obs = torch.cat([disc_obs, replay_obs], dim=0)
         norm_disc_obs = self._disc_obs_norm.normalize(disc_obs)
+        norm_disc_obs.requires_grad_(True)
 
         disc_agent_logit = self._model.eval_disc(norm_disc_obs)
         disc_demo_logit = self._model.eval_disc(norm_disc_obs_demo)
@@ -157,7 +186,13 @@ class AMPAgent(ppo_agent.PPOAgent):
                                              create_graph=True, retain_graph=True, only_inputs=True)
         disc_demo_grad = disc_demo_grad[0]
         disc_demo_grad = torch.sum(torch.square(disc_demo_grad), dim=-1)
-        disc_grad_penalty = torch.mean(disc_demo_grad)
+
+        disc_agent_grad = torch.autograd.grad(disc_agent_logit, norm_disc_obs, grad_outputs=torch.ones_like(disc_agent_logit),
+                                             create_graph=True, retain_graph=True, only_inputs=True)
+        disc_agent_grad = disc_agent_grad[0]
+        disc_agent_grad = torch.sum(torch.square(disc_agent_grad), dim=-1)
+
+        disc_grad_penalty = 0.5 * (torch.mean(disc_demo_grad) + torch.mean(disc_agent_grad))
         disc_loss += self._disc_grad_penalty * disc_grad_penalty
 
         disc_agent_acc, disc_demo_acc = self._compute_disc_acc(disc_agent_logit, disc_demo_logit)
@@ -179,14 +214,7 @@ class AMPAgent(ppo_agent.PPOAgent):
             disc_logit_loss = torch.sum(torch.square(logit_weights))
             disc_loss += self._disc_logit_reg * disc_logit_loss
             disc_info["disc_logit_loss"] = disc_logit_loss.detach()
-            
-        if (self._disc_weight_decay != 0):
-            disc_weights = self._model.get_disc_weights()
-            disc_weights = torch.cat(disc_weights, dim=-1)
-            disc_weight_decay = torch.sum(torch.square(disc_weights))
-            disc_loss += self._disc_weight_decay * disc_weight_decay
-            disc_info["disc_weight_decay"] = disc_weight_decay.detach()
-
+        
         return disc_info
 
     def _disc_loss_neg(self, disc_logits):

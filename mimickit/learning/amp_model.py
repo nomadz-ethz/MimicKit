@@ -17,15 +17,10 @@ class AMPModel(ppo_model.PPOModel):
     def get_disc_logit_weights(self):
         return torch.flatten(self._disc_logits.weight)
     
-    def get_disc_weights(self):
-        weights = []
-        for m in self._disc_layers.modules():
-            if hasattr(m, "weight"):
-                weights.append(torch.flatten(m.weight))
-
-        weights.append(torch.flatten(self._disc_logits.weight))
-        return weights
-
+    def get_disc_params(self):
+        params = list(self._disc_layers.parameters()) + list(self._disc_logits.parameters())
+        return params
+    
     def _build_nets(self, config, env):
         super()._build_nets(config, env)
         self._build_disc(config, env)

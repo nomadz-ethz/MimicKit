@@ -1,8 +1,10 @@
+import numpy as np
 import torch
 
-import learning.base_agent as base_agent
 import learning.amp_agent as amp_agent
 import learning.ase_model as ase_model
+import learning.base_agent as base_agent
+import learning.mp_optimizer as mp_optimizer
 import learning.rl_util as rl_util
 import util.mp_util as mp_util
 import util.torch_util as torch_util
@@ -28,7 +30,8 @@ class ASEAgent(amp_agent.AMPAgent):
         self._diversity_weight = config["diversity_weight"]
         self._diversity_tar = config["diversity_tar"]
         
-        self._enc_loss_weight = config["enc_loss_weight"]
+        self._enc_epochs = config["enc_epochs"]
+        self._enc_batch_size = config["enc_batch_size"]
         self._enc_eval_batch_size = int(config.get("enc_eval_batch_size", 0))
         self._enc_reward_weight = config["enc_reward_weight"]
         return
@@ -134,10 +137,26 @@ class ASEAgent(amp_agent.AMPAgent):
         self._exp_buffer.record("latents", self._latent_buf)
         return
     
+    def _build_optimizer(self, config):
+        super()._build_optimizer(config)
+
+        enc_config = config["enc_optimizer"]
+        enc_params = list(self._model.get_enc_params())
+        enc_params = [p for p in enc_params if p.requires_grad]
+        self._enc_optimizer = mp_optimizer.MPOptimizer(enc_config, enc_params)
+        return
+    
+    def _sync_optimizer(self):
+        super()._sync_optimizer()
+        self._enc_optimizer.sync()
+        return
+    
     def _build_train_data(self):
         self.eval()
         
         self._record_disc_demo_data()
+        self._store_disc_replay_data()
+        
         info = self._compute_rewards()
 
         obs = self._exp_buffer.get_data("obs")
@@ -217,9 +236,37 @@ class ASEAgent(amp_agent.AMPAgent):
             enc_r = torch.clamp_min(-err, 0.0)
         return enc_r
 
+    def _update_model(self):
+        info = super()._update_model()
+        
+        num_envs = self.get_num_envs()
+        num_samples = self._exp_buffer.get_sample_count()
+
+        enc_batch_size = int(np.ceil(self._enc_batch_size * num_envs))
+        num_enc_batches = int(np.ceil(float(num_samples) / enc_batch_size))
+        num_enc_steps = num_enc_batches * self._enc_epochs
+        enc_info = self._update_enc(enc_batch_size, num_enc_steps)
+        
+        info = {**info, **enc_info}
+        return info
+
+    def _update_enc(self, batch_size, steps):
+        info = dict()
+
+        for i in range(steps):
+            batch = self._exp_buffer.sample(batch_size)
+            loss_info = self._compute_enc_loss(batch)
+            loss = loss_info["enc_loss"]
+            self._enc_optimizer.step(loss)
+
+            torch_util.add_torch_dict(loss_info, info)
+        
+        torch_util.scale_torch_dict(1.0 / steps, info)
+        return info
+    
     def _compute_actor_loss(self, batch):
-        norm_obs = batch["norm_obs"]
-        norm_a = batch["norm_action"]
+        norm_obs = self._obs_norm.normalize(batch["obs"])
+        norm_a = self._a_norm.normalize(batch["action"])
         old_a_logp = batch["a_logp"]
         adv = batch["adv"]
         rand_action_mask = batch["rand_action_mask"]
@@ -279,20 +326,8 @@ class ASEAgent(amp_agent.AMPAgent):
         
         return info
     
-    def _compute_loss(self, batch):
-        info = super()._compute_loss(batch)
-
-        enc_loss = self._compute_enc_loss(batch)
-
-        loss = info["loss"]
-        loss = loss + self._enc_loss_weight * enc_loss
-        info["loss"] = loss
-        info["enc_loss"] = enc_loss
-
-        return info
-
     def _compute_critic_loss(self, batch):
-        norm_obs = batch["norm_obs"]
+        norm_obs = self._obs_norm.normalize(batch["obs"])
         tar_val = batch["tar_val"]
         z = batch["latents"]
         pred = self._model.eval_critic(obs=norm_obs, z=z)
@@ -309,15 +344,16 @@ class ASEAgent(amp_agent.AMPAgent):
     def _compute_enc_loss(self, batch):
         disc_obs = batch["disc_obs"]
         tar_latents = batch["latents"]
-        disc_obs = disc_obs[:self._disc_batch_size]
-        tar_latents = tar_latents[:self._disc_batch_size]
 
         norm_disc_obs = self._disc_obs_norm.normalize(disc_obs)
         enc_pred = self._model.eval_enc(norm_disc_obs)
         enc_err = self._calc_enc_error(tar_latents=tar_latents, enc_pred=enc_pred)
         enc_loss = torch.mean(enc_err)
 
-        return enc_loss
+        info = {
+            "enc_loss": enc_loss
+        }
+        return info
 
     def _calc_enc_error(self, tar_latents, enc_pred):
         err = tar_latents * enc_pred

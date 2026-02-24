@@ -341,13 +341,11 @@ class NewtonEngine(engine.Engine):
         if (visualize):
             self._build_viewer()
             self._keyboard_callbacks = dict()
-        else:
-            self._viewer = None
-
-        if (visualize):
             self._record_video = False
         else:
+            self._viewer = None
             self._record_video = record_video
+        
         return
     
     def get_name(self):

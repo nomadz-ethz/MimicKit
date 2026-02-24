@@ -59,7 +59,6 @@ class SimEnv(base_env.BaseEnv):
                 self._engine.start_video_recording()
             else:
                 self._engine.stop_video_recording()
-
         return
 
     def reset(self, env_ids=None):

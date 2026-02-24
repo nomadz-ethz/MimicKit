@@ -1,4 +1,4 @@
-# ADD
+# Adversarial Differential Discriminator (ADD)
 
 ![ADD](../images/ADD_teaser.png)
 
