@@ -1045,13 +1045,15 @@ class IsaacLabEngine(engine.Engine):
             if (contact_prim_path is not None):
                 contact_prim_name = os.path.basename(contact_prim_path)
                 sensor_regex = OBJ_PATH_TEMPLATE.format(".*", obj_id) + "/{:s}/.*".format(contact_prim_name)
-
-                sensor_cfg = ContactSensorCfg(prim_path=sensor_regex, 
-                                              update_period=timestep,
-                                              filter_prim_paths_expr=ground_prim_paths)
-                sensor = ContactSensor(sensor_cfg)
             else:
-                sensor = None
+                # Fallback for robots with flat USD hierarchies (e.g., converted from URDF),
+                # where body links are direct children of the obj prim with no nesting.
+                sensor_regex = OBJ_PATH_TEMPLATE.format(".*", obj_id) + "/.*"
+
+            sensor_cfg = ContactSensorCfg(prim_path=sensor_regex,
+                                          update_period=timestep,
+                                          filter_prim_paths_expr=ground_prim_paths)
+            sensor = ContactSensor(sensor_cfg)
         
             self._ground_contact_sensors.append(sensor)
         return
