@@ -985,7 +985,11 @@ class IsaacLabEngine(engine.Engine):
     def _disable_prim_collisions(self, prim_path):
         import isaaclab.sim as sim_utils
 
-        child_prims = sim_utils.get_all_matching_child_prims(prim_path, traverse_instance_prims=True)
+        # child_prims = sim_utils.get_all_matching_child_prims(prim_path, traverse_instance_prims=True)
+
+        # TypeError: get_all_matching_child_prims() got an unexpected keyword argument 'traverse_instance_prims'
+        child_prims = sim_utils.get_all_matching_child_prims(prim_path)
+
         for col_prim in child_prims:
             if (col_prim.IsInstanceable()):
                 col_prim.SetInstanceable(False)
