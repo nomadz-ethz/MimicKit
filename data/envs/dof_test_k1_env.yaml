@@ -1,0 +1,13 @@
+# To run this environment, use the following command:
+# python mimickit/run.py --num_envs 4 --engine_config data/engines/isaac_lab_engine.yaml --env_config data/envs/dof_test_k1_env.yaml --visualize true --out_dir output/
+
+env_name: "char_dof_test"
+
+char_file: "data/assets/k1/k1.xml"
+camera_mode: "still"
+
+episode_length: 20.0 # seconds
+global_obs: False
+root_height_obs: True
+
+init_pose: [0, 0, 0.95]
